@@ -1,8 +1,8 @@
 # ────────────────────────────────────────────────────────────────
-#  어제 기온 vs 역대 기온  (Streamlit Cloud 용)
-#  ▸ 외부 패키지 설치 없이 작동
-#  ▸ 최근 N일 평균 vs 역대 같은 기간 N일 평균 그래프 포함
-#  (c) 2025 – 자유롭게 수정·재배포 가능
+#  어제 기온 vs 역대 기온  (Streamlit Cloud 용 완전판)
+#  ▸ 평균기온 역대 기록 포함
+#  ▸ metric 카드에 “상위 X%(N일 중 Y위)” 표기
+#  ▸ 최근 N일 실제 vs 역대 평균 그래프 포함
 # ────────────────────────────────────────────────────────────────
 import streamlit as st
 import pandas as pd
@@ -75,39 +75,62 @@ same_day_df = df[
     (df["날짜"].dt.year.between(*sel_years))
 ]
 
-# ────────────── 6. 최고·최저 랭킹 ──────────────
-high_y, low_y = df_yest["최고기온(℃)"].iloc[0], df_yest["최저기온(℃)"].iloc[0]
+# ────────────── 6. 최고·평균·최저 랭킹 계산 ──────────────
+high_y = df_yest["최고기온(℃)"].iloc[0]
+avg_y  = df_yest["평균기온(℃)"].iloc[0]
+low_y  = df_yest["최저기온(℃)"].iloc[0]
+
 rank_high_df = same_day_df.sort_values("최고기온(℃)", ascending=False).reset_index(drop=True)
+rank_avg_df  = same_day_df.sort_values("평균기온(℃)", ascending=False).reset_index(drop=True)
 rank_low_df  = same_day_df.sort_values("최저기온(℃)").reset_index(drop=True)
 
 rank_high = rank_high_df[rank_high_df["날짜"] == y_dt].index[0] + 1
-rank_low  = rank_low_df[rank_low_df["날짜"] == y_dt].index[0] + 1
-pct_high  = 100 * (rank_high - 1) / len(rank_high_df)
-pct_low   = 100 * (rank_low  - 1) / len(rank_low_df)
+rank_avg  = rank_avg_df [rank_avg_df ["날짜"] == y_dt].index[0] + 1
+rank_low  = rank_low_df [rank_low_df ["날짜"] == y_dt].index[0] + 1
+
+pct_high = 100 * (rank_high - 1) / len(rank_high_df)
+pct_avg  = 100 * (rank_avg  - 1) / len(rank_avg_df)
+pct_low  = 100 * (rank_low  - 1) / len(rank_low_df)
 
 rec_high = rank_high_df.iloc[0]
+rec_avg  = rank_avg_df.iloc[0]
 rec_low  = rank_low_df.iloc[0]
 
+# ────────────── 7. 역대 기록 표시 ──────────────
 st.markdown("### 🏆 역대 기록")
-st.write(f"📈 역대 최고: {rec_high['최고기온(℃)']}℃ ({rec_high['날짜'].date()}) "
-         f"→ 어제보다 {rec_high['최고기온(℃)'] - high_y:+.1f}℃")
-st.write(f"❄️ 역대 최저: {rec_low['최저기온(℃)']}℃ ({rec_low['날짜'].date()}) "
-         f"→ 어제보다 {rec_low['최저기온(℃)'] - low_y:+.1f}℃")
+st.write(f"📈 **역대 최고**: {rec_high['최고기온(℃)']}℃ "
+         f"({rec_high['날짜'].date()}) → 어제보다 "
+         f"{rec_high['최고기온(℃)'] - high_y:+.1f}℃")
 
+st.write(f"🌡️ **역대 평균**: {rec_avg['평균기온(℃)']}℃ "
+         f"({rec_avg['날짜'].date()}) → 어제보다 "
+         f"{rec_avg['평균기온(℃)'] - avg_y:+.1f}℃")
+
+st.write(f"❄️ **역대 최저**: {rec_low['최저기온(℃)']}℃ "
+         f"({rec_low['날짜'].date()}) → 어제보다 "
+         f"{rec_low['최저기온(℃)'] - low_y:+.1f}℃")
+
+# ────────────── 8. metric 카드 ──────────────
 c1, c2 = st.columns(2)
 c1.metric(
     "🌡️ 어제 최고기온",
     f"{high_y}℃",
     f"상위 {pct_high:.1f}%({len(rank_high_df)}일 중 {rank_high}위)"
 )
-
 c2.metric(
     "🌙 어제 최저기온",
     f"{low_y}℃",
     f"상위 {pct_low:.1f}%({len(rank_low_df)}일 중 {rank_low}위)"
 )
 
-# ────────────── 7. Top5 표 & 추이 그래프 ──────────────
+# (평균기온 카드가 필요하다면 ↓ 주석 해제)
+# st.metric(
+#     label="🌡️ 어제 평균기온",
+#     value=f"{avg_y}℃",
+#     delta=f"상위 {pct_avg:.1f}%({len(rank_avg_df)}일 중 {rank_avg}위)"
+# )
+
+# ────────────── 9. Top5 표 & 추이 그래프 ──────────────
 st.markdown("---")
 st.subheader("🔥 가장 더웠던 날 Top 5")
 st.dataframe(rank_high_df.head(5).reset_index(drop=True))
@@ -132,7 +155,7 @@ fig_low.add_scatter(x=[y_dt], y=[low_y], mode="markers+text",
                     textposition="top center")
 st.plotly_chart(fig_low, use_container_width=True)
 
-# ────────────── 8. 최근 N일 vs 역대 동일 기간 ──────────────
+# ────────────── 10. 최근 N일 vs 역대 동일 기간 ──────────────
 st.markdown("---")
 st.subheader("📅 최근 기간 평균 기온 분석")
 
@@ -144,11 +167,11 @@ avg_high = recent_df["최고기온(℃)"].mean()
 avg_low  = recent_df["최저기온(℃)"].mean()
 avg_mean = recent_df["평균기온(℃)"].mean()
 
-# ── (1) ‘같은 기간’ MM-DD 목록
+# (1) MM-DD 목록
 period_days = [(today - datetime.timedelta(days=i)).strftime("%m-%d")
                for i in range(1, day_range + 1)]
 
-# ── (2) 여러 연도의 해당 기간 평균 계산
+# (2) 연도별 N일 평균
 period_df = df[df["날짜"].dt.strftime("%m-%d").isin(period_days)]
 yearly_avg = (period_df
               .groupby(period_df["날짜"].dt.year)
@@ -157,7 +180,7 @@ yearly_avg = (period_df
                    평균평균=("평균기온(℃)", "mean"))
               .reset_index())
 
-# ── (3) 백분위·순위 (평균기온 기준)
+# (3) 백분위·순위 (평균기온 기준)
 all_years_mean = yearly_avg["평균평균"]
 pct_mean  = 100 * (all_years_mean < avg_mean).sum() / len(all_years_mean)
 rank_mean = (all_years_mean > avg_mean).sum() + 1   # 1위부터
@@ -172,19 +195,15 @@ st.info(f"📈 최근 {day_range}일 평균기온은 역대 동일 기간 중 "
         f"상위 **{100-pct_mean:.1f}%** "
         f"(전체 {len(all_years_mean)}개 기간 중 {rank_mean}위)")
 
-# ─── 8-A. 최근 vs 역대 일자별 꺾은선그래프 ───
-# 날짜별 최근 최고·최저 + MM-DD 매핑으로 역대 평균 값 붙이기
+# ─── 10-A. 최근 vs 역대 일자별 비교 그래프 ───
 recent_plot = (recent_df[["날짜", "최고기온(℃)", "최저기온(℃)"]]
                .sort_values("날짜")
                .reset_index(drop=True))
 recent_plot["날짜_str"] = recent_plot["날짜"].dt.strftime("%Y-%m-%d")
-
-# MM-DD → 역대 일평균 매핑 테이블
 hist_daily = (period_df
               .groupby(period_df["날짜"].dt.strftime("%m-%d"))
               .agg(역대최고=("최고기온(℃)", "mean"),
                    역대최저=("최저기온(℃)", "mean")))
-
 recent_plot["역대최고"] = recent_plot["날짜"].dt.strftime("%m-%d").map(hist_daily["역대최고"])
 recent_plot["역대최저"] = recent_plot["날짜"].dt.strftime("%m-%d").map(hist_daily["역대최저"])
 
@@ -201,7 +220,7 @@ fig_cmp = px.line(long_df, x="날짜_str", y="기온(℃)",
 fig_cmp.update_layout(xaxis_tickangle=-45)
 st.plotly_chart(fig_cmp, use_container_width=True)
 
-# ────────────── 9. 최고 vs 최저 스캐터 ──────────────
+# ────────────── 11. 최고 vs 최저 스캐터 ──────────────
 st.markdown("---")
 st.subheader("📍 최고기온 vs 최저기온 분포 (동일 날짜)")
 
