@@ -50,9 +50,9 @@ record_high = same_day_df.sort_values("최고기온(℃)", ascending=False).iloc
 record_low = same_day_df.sort_values("최저기온(℃)").iloc[0]
 
 st.markdown("### 🏆 역대 기록")
-st.write(f"📈 **역대 최고기온**: {record_high['최고기온(℃)']}℃ on {record_high['날짜'].date()}  ")
-st.write(f"➡️ 어제보다 {(record_high['최고기온(℃)'] - highest_temp_yesterday):.1f}℃ {'높았습니다' if record_high['최고기온(℃)'] > highest_temp_yesterday else '낮았습니다'}")']}℃ on {record_high['날짜'].date()}")
-st.write(f"❄️ **역대 최저기온**: {record_low['최저기온(℃)']}℃ on {record_low['날짜'].date()}  ")
+st.write(f"📈 **역대 최고기온**: {record_high['최고기온(℃)']}℃ on {record_high['날짜'].date()}")']}℃ on {record_high['날짜'].date()}  ")
+st.write(f"➡️ 어제보다 {(record_low['최저기온(℃)'] - lowest_temp_yesterday):.1f}℃ {'낮았습니다' if record_low['최저기온(℃)'] < lowest_temp_yesterday else '높았습니다'}")'] - highest_temp_yesterday):.1f}℃ {'높았습니다' if record_high['최고기온(℃)'] > highest_temp_yesterday else '낮았습니다'}")'] - highest_temp_yesterday):.1f}℃ {'높았습니다' if record_high['최고기온(℃)'] > highest_temp_yesterday else '낮았습니다'}")']}℃ on {record_high['날짜'].date()}")
+st.write(f"❄️ **역대 최저기온**: {record_low['최저기온(℃)']}℃ on {record_low['날짜'].date()}")']}℃ on {record_low['날짜'].date()}  ")
 st.write(f"➡️ 어제보다 {(record_low['최저기온(℃)'] - lowest_temp_yesterday):.1f}℃ {'낮았습니다' if record_low['최저기온(℃)'] < lowest_temp_yesterday else '높았습니다'}")']}℃ on {record_low['날짜'].date()}")
 
 col1, col2 = st.columns(2)
