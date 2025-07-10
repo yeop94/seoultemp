@@ -7,7 +7,7 @@ import pandas as pd
 import datetime
 import os
 import plotly.express as px
-import koreanize_matplotlib   # 한글 폰트 자동 설정 (그래프·표시용)
+#import koreanize_matplotlib   # 한글 폰트 자동 설정 (그래프·표시용)
 
 # ────────────────────────────────────────────────────────────────
 # 1. 페이지 설정
