@@ -118,6 +118,18 @@ if uploaded_file:
                                title=f"최근 {day_range}일간 기온 변화 추이")
             st.plotly_chart(fig_week)
 
+            # 최고기온 vs 최저기온 스캐터플롯
+            scatter_df = same_day_df.copy()
+            scatter_df["날짜"] = scatter_df["날짜"].dt.strftime("%Y-%m-%d")
+            scatter_df["어제"] = scatter_df["날짜"] == str(yesterday)
+            record_label = scatter_df.loc[scatter_df["최고기온(℃)"].idxmax(), "날짜"]
+
+            fig_scatter = px.scatter(scatter_df, x="최고기온(℃)", y="최저기온(℃)", color="어제",
+                                     hover_name="날짜", title="📍 최고기온 vs 최저기온 분포",
+                                     labels={"어제": "어제 여부"})
+
+            st.plotly_chart(fig_scatter)
+
             recent_mean_df = df[df["날짜"].dt.strftime("%m-%d").isin(
                 [(today - datetime.timedelta(days=i)).strftime("%m-%d") for i in range(1, day_range + 1)])]
 
@@ -136,7 +148,8 @@ if uploaded_file:
             # 백분위 계산
             temp_diff_df = recent_mean_df.groupby(df["날짜"].dt.strftime("%m-%d"))["평균기온(℃)"].mean().reset_index(name="평균기온")
             percentile_rank = 100 * (temp_diff_df["평균기온"] < avg_avg).sum() / len(temp_diff_df)
-            st.write(f"📈 평균기온 기준으로 최근 {day_range}일은 역대 {len(temp_diff_df)}개 연중 동일 기간 중 상위 {100 - percentile_rank:.1f}% 더운 편입니다")
+            st.write(f"📈 평균기온 기준으로 최근 {day_range}일은 역대 {len(temp_diff_df)}개 연중 동일 기간 중 상위 {100 - percentile_rank:.1f}% 더운 편입니다
+(x일 중 {len(temp_diff_df) - int(percentile_rank * len(temp_diff_df)/100)}위)")
 
     except Exception as e:
         st.error(f"오류가 발생했습니다: {e}")
