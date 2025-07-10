@@ -50,8 +50,10 @@ record_high = same_day_df.sort_values("최고기온(℃)", ascending=False).iloc
 record_low = same_day_df.sort_values("최저기온(℃)").iloc[0]
 
 st.markdown("### 🏆 역대 기록")
-st.write(f"📈 **역대 최고기온**: {record_high['최고기온(℃)']}℃ on {record_high['날짜'].date()}")
-st.write(f"❄️ **역대 최저기온**: {record_low['최저기온(℃)']}℃ on {record_low['날짜'].date()}")
+st.write(f"📈 **역대 최고기온**: {record_high['최고기온(℃)']}℃ on {record_high['날짜'].date()}  ")
+st.write(f"➡️ 어제보다 {(record_high['최고기온(℃)'] - highest_temp_yesterday):.1f}℃ {'높았습니다' if record_high['최고기온(℃)'] > highest_temp_yesterday else '낮았습니다'}")']}℃ on {record_high['날짜'].date()}")
+st.write(f"❄️ **역대 최저기온**: {record_low['최저기온(℃)']}℃ on {record_low['날짜'].date()}  ")
+st.write(f"➡️ 어제보다 {(record_low['최저기온(℃)'] - lowest_temp_yesterday):.1f}℃ {'낮았습니다' if record_low['최저기온(℃)'] < lowest_temp_yesterday else '높았습니다'}")']}℃ on {record_low['날짜'].date()}")
 
 col1, col2 = st.columns(2)
             with col1:
@@ -86,35 +88,39 @@ col1, col2 = st.columns(2)
             st.plotly_chart(fig_low)
 
             st.markdown("---")
-            st.subheader("📅 최근 1주일간 평균 기온 분석")
-            one_week_ago = pd.to_datetime(today) - pd.Timedelta(days=7)
-            last_week_df = df[(df["날짜"] >= one_week_ago) & (df["날짜"] < pd.to_datetime(today))]
+            st.subheader("📅 최근 기간 평균 기온 분석")
+            day_range = st.slider("비교할 최근 일 수를 선택하세요", min_value=3, max_value=30, value=7)
+            start_day = pd.to_datetime(today) - pd.Timedelta(days=day_range)
+            recent_df = df[(df["날짜"] >= start_day) & (df["날짜"] < pd.to_datetime(today))]
 
-            avg_high = last_week_df["최고기온(℃)"].mean()
-            avg_low = last_week_df["최저기온(℃)"].mean()
-            avg_avg = last_week_df["평균기온(℃)"].mean()
+            avg_high = recent_df["최고기온(℃)"].mean()
+            avg_low = recent_df["최저기온(℃)"].mean()
+            avg_avg = recent_df["평균기온(℃)"].mean()
 
             st.write(f"최근 7일간 평균 최고기온: **{avg_high:.2f}℃**")
             st.write(f"최근 7일간 평균 최저기온: **{avg_low:.2f}℃**")
             st.write(f"최근 7일간 평균기온: **{avg_avg:.2f}℃**")
 
-            fig_week = px.line(last_week_df.sort_values("날짜"), x="날짜", y=["최고기온(℃)", "평균기온(℃)", "최저기온(℃)"],
-                               title="최근 1주일간 기온 변화 추이")
+            fig_week = px.line(recent_df.sort_values("날짜"), x="날짜", y=["최고기온(℃)", "평균기온(℃)", "최저기온(℃)"],
+                               title=f"최근 {day_range}일간 기온 변화 추이")
 
             st.plotly_chart(fig_week)
 
             # 최근 1주일 평균과 역대 평균 비교
             recent_mean_df = df[df["날짜"].dt.strftime("%m-%d").isin(
-                [(today - datetime.timedelta(days=i)).strftime("%m-%d") for i in range(1, 8)])]
+                [(today - datetime.timedelta(days=i)).strftime("%m-%d") for i in range(1, day_range + 1)])])]
 
             hist_avg_high = recent_mean_df.groupby(df["날짜"].dt.strftime("%m-%d"))["최고기온(℃)"].mean().mean()
             hist_avg_low = recent_mean_df.groupby(df["날짜"].dt.strftime("%m-%d"))["최저기온(℃)"].mean().mean()
             hist_avg_avg = recent_mean_df.groupby(df["날짜"].dt.strftime("%m-%d"))["평균기온(℃)"].mean().mean()
 
-            st.markdown("### 🧮 최근 1주일 평균 vs 역대 1주일 평균")
+            st.markdown("### 🧮 최근 {day_range}일 평균 vs 역대 {day_range}일 평균")
             st.write(f"📊 **최근 1주일 평균 최고기온**: {avg_high:.2f}℃ vs **역대 평균**: {hist_avg_high:.2f}℃")
+            st.write(f"➡️ {(avg_high - hist_avg_high):.2f}℃ {'더웠습니다' if avg_high > hist_avg_high else '덜 더웠습니다'}")
             st.write(f"🌙 **최근 1주일 평균 최저기온**: {avg_low:.2f}℃ vs **역대 평균**: {hist_avg_low:.2f}℃")
+            st.write(f"➡️ {(avg_low - hist_avg_low):.2f}℃ {'더웠습니다' if avg_low > hist_avg_low else '덜 더웠습니다'}")
             st.write(f"🌡️ **최근 1주일 평균기온**: {avg_avg:.2f}℃ vs **역대 평균**: {hist_avg_avg:.2f}℃")
+            st.write(f"➡️ {(avg_avg - hist_avg_avg):.2f}℃ {'더웠습니다' if avg_avg > hist_avg_avg else '덜 더웠습니다'}")
             st.plotly_chart(fig_week)
 
     except Exception as e:
