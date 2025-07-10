@@ -1,174 +1,231 @@
+# 어제 기온 vs 역대 기온  ─────────────────────────────────────────
+# (c) 2025 Example – 자유롭게 수정·재배포 가능
+# ---------------------------------------------------------------
+
 import streamlit as st
 import pandas as pd
 import datetime
 import os
 import plotly.express as px
+import koreanize_matplotlib   # 한글 폰트 자동 설정 (그래프·표시용)
 
-st.set_page_config(page_title="어제 기온 vs 역대 기온", layout="centered")
+# ────────────────────────────────────────────────────────────────
+# 1. 페이지 설정
+# ────────────────────────────────────────────────────────────────
+st.set_page_config(
+    page_title="어제 기온 vs 역대 기온",
+    layout="centered",
+    page_icon="📈",
+)
 st.title("📈 어제는 얼마나 더웠을까?")
 
-# 파일 업로드
-uploaded_file = st.file_uploader("CSV 파일을 업로드하세요 (기온 데이터, CP949 인코딩)", type="csv")
-
-# 업로드된 파일이 없으면 기본 파일 사용
-if not uploaded_file:
-    for fname in os.listdir("."):
-        if fname.startswith("ta") and fname.endswith(".csv"):
-            uploaded_file = fname
+# ────────────────────────────────────────────────────────────────
+# 2. 데이터 로더
+# ────────────────────────────────────────────────────────────────
+def load_temperature_csv(path_or_file, skiprows: int = 7) -> pd.DataFrame:
+    """CP949 → UTF-8-SIG 순으로 시도하여 CSV 로드"""
+    for enc in ("cp949", "utf-8-sig"):
+        try:
+            df = pd.read_csv(path_or_file, encoding=enc, skiprows=skiprows)
             break
+        except UnicodeDecodeError:
+            continue
+    else:
+        raise ValueError("지원되지 않는 인코딩입니다.")
 
-if uploaded_file:
-    try:
-        file_path = uploaded_file if isinstance(uploaded_file, str) else uploaded_file
+    # 날짜 전처리
+    if "날짜" not in df.columns:
+        raise ValueError("CSV에 '날짜' 열이 없습니다.")
+    df["날짜"] = pd.to_datetime(df["날짜"].astype(str).str.strip(), format="%Y-%m-%d")
+    return df
 
-        df = pd.read_csv(file_path, encoding="cp949", skiprows=7)
-        df["날짜"] = df["날짜"].str.strip()
-        df["날짜"] = pd.to_datetime(df["날짜"], format="%Y-%m-%d")
 
-        today = datetime.date.today()
-        yesterday = today - datetime.timedelta(days=1)
-        st.subheader(f"🔍 분석 대상 날짜: {yesterday.strftime('%Y-%m-%d')}")
+# ────────────────────────────────────────────────────────────────
+# 3. CSV 업로드 또는 기본 파일 사용
+# ────────────────────────────────────────────────────────────────
+uploaded_file = st.file_uploader(
+    "CSV 파일을 업로드하세요 (CP949 또는 UTF-8, 7행 헤더 제외)",
+    type="csv",
+)
 
-        df_yesterday = df[df["날짜"] == pd.to_datetime(yesterday)]
-        if df_yesterday.empty:
-            st.warning("해당 날짜의 데이터가 없습니다.")
-        else:
-            # 연도 선택 슬라이더 추가
-            year_min = df["날짜"].dt.year.min()
-            year_max = df["날짜"].dt.year.max()
-            selected_years = st.slider("비교할 연도 범위", min_value=year_min, max_value=year_max, value=(year_min, year_max))
+if uploaded_file is None:
+    # 업로드가 없으면 기본 파일 찾기
+    default_file = next(
+        (fname for fname in os.listdir(".") if fname.startswith("ta") and fname.endswith(".csv")),
+        None,
+    )
+    if default_file:
+        uploaded_file = default_file
+        st.info(f"기본 파일 **{default_file}** 을(를) 사용합니다.")
+    else:
+        st.warning("CSV 파일을 업로드하거나 작업 폴더에 'ta*.csv' 파일을 두세요.")
+        st.stop()
 
-            same_day_df = df[(df["날짜"].dt.strftime("%m-%d") == yesterday.strftime("%m-%d")) &
-                             (df["날짜"].dt.year >= selected_years[0]) &
-                             (df["날짜"].dt.year <= selected_years[1])]
+# 데이터 불러오기
+try:
+    df = load_temperature_csv(uploaded_file)
+except Exception as e:
+    st.error(f"파일을 읽는 중 오류 발생: {e}")
+    st.stop()
 
-            highest_temp_yesterday = df_yesterday["최고기온(℃)"].values[0]
-            highest_ranks = same_day_df.sort_values("최고기온(℃)", ascending=False).reset_index(drop=True)
-            highest_rank = highest_ranks[highest_ranks["날짜"] == pd.to_datetime(yesterday)].index[0] + 1
-            highest_percentile = 100 * (highest_rank / len(highest_ranks))
+# ────────────────────────────────────────────────────────────────
+# 4. 분석 대상 날짜(어제) 설정
+# ────────────────────────────────────────────────────────────────
+today      = datetime.date.today()
+yesterday  = today - datetime.timedelta(days=1)
+yesterday_dt = pd.to_datetime(yesterday)
 
-            lowest_temp_yesterday = df_yesterday["최저기온(℃)"].values[0]
-            lowest_ranks = same_day_df.sort_values("최저기온(℃)").reset_index(drop=True)
-            lowest_rank = lowest_ranks[lowest_ranks["날짜"] == pd.to_datetime(yesterday)].index[0] + 1
-            lowest_percentile = 100 * (lowest_rank / len(lowest_ranks))
+st.subheader(f"🔍 분석 대상 날짜: {yesterday:%Y-%m-%d}")
 
-            # 역대 최고 및 최저 1위 정보 출력
-            total_high = len(highest_ranks)
-            total_low = len(lowest_ranks)
-            high_percent = 100 * highest_rank / total_high
-            low_percent = 100 * lowest_rank / total_low
-            record_high = same_day_df.sort_values("최고기온(℃)", ascending=False).iloc[0]
-            record_low = same_day_df.sort_values("최저기온(℃)").iloc[0]
+df_yest = df[df["날짜"] == yesterday_dt]
+if df_yest.empty:
+    st.warning("데이터에 어제 날짜가 없습니다. CSV를 확인해 주세요.")
+    st.stop()
 
-            st.markdown("### 🏆 역대 기록")
-            st.write(f"📈 **역대 최고기온**: {record_high['최고기온(℃)']}℃ on {record_high['날짜'].date()}")
-            st.write(f"➡️ 어제보다 {(record_high['최고기온(℃)'] - highest_temp_yesterday):.1f}℃ {'높았습니다' if record_high['최고기온(℃)'] > highest_temp_yesterday else '낮았습니다'}")
-            st.write(f"📊 어제는 역대 {total_high}일 중 **상위 {high_percent:.1f}%** 더운 날")
-            st.write(f"❄️ **역대 최저기온**: {record_low['최저기온(℃)']}℃ on {record_low['날짜'].date()}")
-            st.write(f"➡️ 어제보다 {(record_low['최저기온(℃)'] - lowest_temp_yesterday):.1f}℃ {'낮았습니다' if record_low['최저기온(℃)'] < lowest_temp_yesterday else '높았습니다'}")
-            st.write(f"📉 어제는 역대 {total_low}일 중 **상위 {low_percent:.1f}%** 추운 날")
+# ────────────────────────────────────────────────────────────────
+# 5. 연도 범위 슬라이더
+# ────────────────────────────────────────────────────────────────
+year_min, year_max = df["날짜"].dt.year.min(), df["날짜"].dt.year.max()
+sel_years = st.slider(
+    "비교할 연도 범위",
+    min_value=int(year_min),
+    max_value=int(year_max),
+    value=(int(year_min), int(year_max)),
+)
 
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("🌡️ 어제 최고기온", f"{highest_temp_yesterday}℃", f"상위 {highest_percentile:.1f}%")
-                st.info(f"역대 7월 {yesterday.day}일 중 **{highest_rank}위**")
-            with col2:
-                st.metric("🌙 어제 최저기온", f"{lowest_temp_yesterday}℃", f"상위 {lowest_percentile:.1f}%")
-                st.info(f"역대 7월 {yesterday.day}일 중 **{lowest_rank}위**")
+# 어제와 같은 MM-DD를 가진 행만 추출
+same_day_df = df[
+    (df["날짜"].dt.strftime("%m-%d") == yesterday.strftime("%m-%d"))
+    & (df["날짜"].dt.year.between(*sel_years))
+]
 
-            st.markdown("---")
-            st.subheader("🔥 역대 동일 날짜 중 가장 더웠던 날 Top 5")
-            st.dataframe(highest_ranks.head(5).reset_index(drop=True))
+# ────────────────────────────────────────────────────────────────
+# 6. 최고·최저 기온 랭킹 계산
+# ────────────────────────────────────────────────────────────────
+high_temp = df_yest["최고기온(℃)"].iloc[0]
+low_temp  = df_yest["최저기온(℃)"].iloc[0]
 
-            st.subheader("📊 최고기온 추이 (Plotly)")
-            fig_high = px.line(same_day_df.sort_values("날짜"), x="날짜", y="최고기온(℃)",
-                               title="역대 7월 {}일 최고기온 추이".format(yesterday.day))
-            fig_high.add_scatter(x=[yesterday], y=[highest_temp_yesterday], mode='markers+text',
-                                 name='어제', marker=dict(size=12, color='red'),
-                                 text=["어제"], textposition="top center")
-            st.plotly_chart(fig_high)
+rank_high_df = same_day_df.sort_values("최고기온(℃)", ascending=False).reset_index(drop=True)
+rank_low_df  = same_day_df.sort_values("최저기온(℃)").reset_index(drop=True)
 
-            st.markdown("---")
-            st.subheader("❄️ 역대 동일 날짜 중 가장 추웠던 날 Top 5")
-            st.dataframe(lowest_ranks.head(5).reset_index(drop=True))
+rank_high = rank_high_df[rank_high_df["날짜"] == yesterday_dt].index[0] + 1  # 1-based
+rank_low  = rank_low_df[rank_low_df["날짜"] == yesterday_dt].index[0] + 1
 
-            st.subheader("📊 최저기온 추이 (Plotly)")
-            fig_low = px.line(same_day_df.sort_values("날짜"), x="날짜", y="최저기온(℃)",
-                              title="역대 7월 {}일 최저기온 추이".format(yesterday.day))
-            fig_low.add_scatter(x=[yesterday], y=[lowest_temp_yesterday], mode='markers+text',
-                                name='어제', marker=dict(size=12, color='blue'),
-                                text=["어제"], textposition="top center")
-            st.plotly_chart(fig_low)
+pct_high = 100 * (rank_high - 1) / len(rank_high_df)  # 1위가 0 %
+pct_low  = 100 * (rank_low  - 1) / len(rank_low_df)
 
-            st.markdown("---")
-            st.subheader("📅 최근 기간 평균 기온 분석")
-            day_range = st.slider("비교할 최근 일 수를 선택하세요", min_value=3, max_value=30, value=7)
-            start_day = pd.to_datetime(today) - pd.Timedelta(days=day_range)
-            recent_df = df[(df["날짜"] >= start_day) & (df["날짜"] < pd.to_datetime(today))]
+rec_high = rank_high_df.iloc[0]
+rec_low  = rank_low_df.iloc[0]
 
-            avg_high = recent_df["최고기온(℃)"].mean()
-            avg_low = recent_df["최저기온(℃)"].mean()
-            avg_avg = recent_df["평균기온(℃)"].mean()
+# ────────────────────────────────────────────────────────────────
+# 7. 결과 표시
+# ────────────────────────────────────────────────────────────────
+st.markdown("### 🏆 역대 기록 요약")
+st.write(
+    f"📈 **역대 최고기온**: {rec_high['최고기온(℃)']}℃ "
+    f"({rec_high['날짜'].date()}) → 어제보다 "
+    f"{rec_high['최고기온(℃)'] - high_temp:+.1f}℃"
+)
+st.write(
+    f"❄️ **역대 최저기온**: {rec_low['최저기온(℃)']}℃ "
+    f"({rec_low['날짜'].date()}) → 어제보다 "
+    f"{rec_low['최저기온(℃)'] - low_temp:+.1f}℃"
+)
 
-            st.write(f"최근 {day_range}일간 평균 최고기온: **{avg_high:.2f}℃**")
-            st.write(f"최근 {day_range}일간 평균 최저기온: **{avg_low:.2f}℃**")
-            st.write(f"최근 {day_range}일간 평균기온: **{avg_avg:.2f}℃**")
+c1, c2 = st.columns(2)
+c1.metric("🌡️ 어제 최고기온", f"{high_temp}℃", f"상위 {pct_high:.1f}%")
+c2.metric("🌙 어제 최저기온", f"{low_temp}℃",  f"상위 {pct_low:.1f}%")
 
-            historical_trend = recent_mean_df.groupby(df["날짜"].dt.strftime("%m-%d"))[["최고기온(℃)", "평균기온(℃)", "최저기온(℃)"]].mean().reset_index()
-            historical_trend["날짜"] = [(today - datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(day_range, 0, -1)]
-            historical_trend = pd.melt(historical_trend, id_vars="날짜", var_name="기온유형", value_name="역대 평균")
-            recent_plot_df = pd.melt(recent_df.sort_values("날짜"), id_vars="날짜", value_vars=["최고기온(℃)", "평균기온(℃)", "최저기온(℃)"], var_name="기온유형", value_name="최근 측정")
+# ────────────────────────────────────────────────────────────────
+# 8. Top 5 테이블 & 추이 그래프
+# ────────────────────────────────────────────────────────────────
+st.markdown("---")
+st.subheader("🔥 역대 동일 날짜 중 가장 더웠던 날 Top 5")
+st.dataframe(rank_high_df.head(5).reset_index(drop=True))
 
-            combined = pd.merge(recent_plot_df, historical_trend, on=["날짜", "기온유형"], how="left")
-            fig_combined = px.line(combined, x="날짜", y="최근 측정", color="기온유형",
-                                   title=f"최근 {day_range}일간 기온 변화 vs 역대 평균 추이")
-            for col in combined["기온유형"].unique():
-                fig_combined.add_scatter(x=combined[combined["기온유형"] == col]["날짜"],
-                                         y=combined[combined["기온유형"] == col]["역대 평균"],
-                                         mode="lines", name=f"{col} (역대 평균)", line=dict(dash="dot"))
-            st.plotly_chart(fig_combined)
+fig_high = px.line(
+    same_day_df.sort_values("날짜"),
+    x="날짜", y="최고기온(℃)",
+    title=f"역대 {yesterday:%m월 %d일} 최고기온 추이",
+)
+fig_high.add_scatter(
+    x=[yesterday_dt], y=[high_temp],
+    mode="markers+text",
+    name="어제", marker=dict(size=12, color="red"),
+    text=["어제"], textposition="top center",
+)
+st.plotly_chart(fig_high, use_container_width=True)
 
-            # 최고기온 vs 최저기온 스캐터플롯
-            scatter_df = same_day_df.copy()
-            scatter_df["날짜"] = scatter_df["날짜"].dt.strftime("%Y-%m-%d")
-            scatter_df["어제"] = scatter_df["날짜"] == str(yesterday)
-            record_label = scatter_df.loc[scatter_df["최고기온(℃)"].idxmax(), "날짜"]
+st.markdown("---")
+st.subheader("❄️ 역대 동일 날짜 중 가장 추웠던 날 Top 5")
+st.dataframe(rank_low_df.head(5).reset_index(drop=True))
 
-            fig_scatter = px.scatter(scatter_df, x="최고기온(℃)", y="최저기온(℃)", color="어제",
-                                     hover_name="날짜", title="📍 최고기온 vs 최저기온 분포",
-                                     labels={"어제": "어제 여부"})
+fig_low = px.line(
+    same_day_df.sort_values("날짜"),
+    x="날짜", y="최저기온(℃)",
+    title=f"역대 {yesterday:%m월 %d일} 최저기온 추이",
+)
+fig_low.add_scatter(
+    x=[yesterday_dt], y=[low_temp],
+    mode="markers+text",
+    name="어제", marker=dict(size=12, color="blue"),
+    text=["어제"], textposition="top center",
+)
+st.plotly_chart(fig_low, use_container_width=True)
 
-            st.plotly_chart(fig_scatter)
+# ────────────────────────────────────────────────────────────────
+# 9. 최근 N일 평균 vs 역대 동일 기간 평균
+# ────────────────────────────────────────────────────────────────
+st.markdown("---")
+st.subheader("📅 최근 기간 평균 기온 분석")
 
-            recent_mean_df = df[df["날짜"].dt.strftime("%m-%d").isin(
-                [(today - datetime.timedelta(days=i)).strftime("%m-%d") for i in range(1, day_range + 1)])]
+day_range = st.slider("비교할 최근 일 수", 3, 30, 7)
+start_day = pd.to_datetime(today) - pd.Timedelta(days=day_range)
+recent_df = df[(df["날짜"] >= start_day) & (df["날짜"] < pd.to_datetime(today))]
 
-            hist_avg_high = recent_mean_df.groupby(df["날짜"].dt.strftime("%m-%d"))["최고기온(℃)"].mean().mean()
-            hist_avg_low = recent_mean_df.groupby(df["날짜"].dt.strftime("%m-%d"))["최저기온(℃)"].mean().mean()
-            hist_avg_avg = recent_mean_df.groupby(df["날짜"].dt.strftime("%m-%d"))["평균기온(℃)"].mean().mean()
+avg_high = recent_df["최고기온(℃)"].mean()
+avg_low  = recent_df["최저기온(℃)"].mean()
+avg_mean = recent_df["평균기온(℃)"].mean()
 
-            st.markdown(f"### 🧮 최근 {day_range}일 평균 vs 역대 {day_range}일 평균")
-            st.write(f"📊 **최근 {day_range}일 평균 최고기온**: {avg_high:.2f}℃ vs **역대 평균**: {hist_avg_high:.2f}℃")
-            st.write(f"➡️ {(avg_high - hist_avg_high):.2f}℃ {'더웠습니다' if avg_high > hist_avg_high else '덜 더웠습니다'}")
-            st.write(f"🌙 **최근 {day_range}일 평균 최저기온**: {avg_low:.2f}℃ vs **역대 평균**: {hist_avg_low:.2f}℃")
-            st.write(f"➡️ {(avg_low - hist_avg_low):.2f}℃ {'더웠습니다' if avg_low > hist_avg_low else '덜 더웠습니다'}")
-            st.write(f"🌡️ **최근 {day_range}일 평균기온**: {avg_avg:.2f}℃ vs **역대 평균**: {hist_avg_avg:.2f}℃")
-            st.write(f"➡️ {(avg_avg - hist_avg_avg):.2f}℃ {'더웠습니다' if avg_avg > hist_avg_avg else '덜 더웠습니다'}")
+# 동일 기간(과거 연도들의 같은 MM-DD) 평균
+period_days = [(today - datetime.timedelta(days=i)).strftime("%m-%d") for i in range(1, day_range + 1)]
+hist_df = df[df["날짜"].dt.strftime("%m-%d").isin(period_days)]
+hist_avg = (
+    hist_df
+    .groupby(hist_df["날짜"].dt.strftime("%m-%d"))
+    [["최고기온(℃)", "평균기온(℃)", "최저기온(℃)"]]
+    .mean()
+)
+hist_high, hist_mean, hist_low = hist_avg.mean()
 
-            # 백분위 계산
-            recent_mean_df = df[df["날짜"].dt.strftime("%m-%d").isin(
-                [(today - datetime.timedelta(days=i)).strftime("%m-%d") for i in range(1, day_range + 1)])]
-            
-            temp_diff_df = recent_mean_df.groupby(df["날짜"].dt.strftime("%m-%d"))["평균기온(℃)"].mean().reset_index(name="평균기온")
-            percentile_rank = 100 * (temp_diff_df["평균기온"] < avg_avg).sum() / len(temp_diff_df)
-            rank_number = len(temp_diff_df) - int(percentile_rank * len(temp_diff_df) / 100)
-            
-            # 안전하게 줄바꿈 포함 메시지 출력
-            msg = (
-                f"📈 평균기온 기준으로 최근 {day_range}일은 역대 {len(temp_diff_df)}개 연중 동일 기간 중\n"
-                f"상위 {100 - percentile_rank:.1f}% 더운 편입니다\n"
-                f"(전체 {len(temp_diff_df)}일 중 {rank_number}위)"
-            )
-            st.write(msg)
-    except Exception as e:
-        st.error(f"오류가 발생했습니다: {e}")
+st.write(
+    f"🌡️ 최근 {day_range}일 평균 **{avg_high:.2f}/{avg_mean:.2f}/{avg_low:.2f}℃** "
+    f"(최고/평균/최저)\n"
+    f"🗂️ 역대 동기간 평균 **{hist_high:.2f}/{hist_mean:.2f}/{hist_low:.2f}℃**"
+)
+
+# 백분위(평균기온 기준)
+pct = 100 * (hist_avg["평균기온(℃)"] < avg_mean).sum() / len(hist_avg)
+rank = len(hist_avg) - int(pct * len(hist_avg) / 100)
+st.info(
+    f"📈 최근 {day_range}일 평균기온은 역대 동일 기간 중 상위 **{100 - pct:.1f}%** "
+    f"(전체 {len(hist_avg)}개 기간 중 {rank}위)입니다."
+)
+
+# ────────────────────────────────────────────────────────────────
+# 10. 최고 vs 최저 Scatter 분포
+# ────────────────────────────────────────────────────────────────
+st.markdown("---")
+st.subheader("📍 최고기온 vs 최저기온 분포")
+
+scatter_df = same_day_df.copy()
+scatter_df["날짜(문자)"] = scatter_df["날짜"].dt.strftime("%Y-%m-%d")
+scatter_df["어제"] = scatter_df["날짜"] == yesterday_dt
+
+fig_scatter = px.scatter(
+    scatter_df, x="최고기온(℃)", y="최저기온(℃)",
+    color="어제", hover_name="날짜(문자)",
+    title="역대 최고·최저 기온 분포(동일 날짜)",
+    labels={"어제": "어제 여부"},
+)
+st.plotly_chart(fig_scatter, use_container_width=True)
