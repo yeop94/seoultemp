@@ -33,7 +33,14 @@ if uploaded_file:
         if df_yesterday.empty:
             st.warning("해당 날짜의 데이터가 없습니다.")
         else:
-            same_day_df = df[df["날짜"].dt.strftime("%m-%d") == yesterday.strftime("%m-%d")]
+            # 연도 선택 슬라이더 추가
+            year_min = df["날짜"].dt.year.min()
+            year_max = df["날짜"].dt.year.max()
+            selected_years = st.slider("비교할 연도 범위", min_value=year_min, max_value=year_max, value=(year_min, year_max))
+
+            same_day_df = df[(df["날짜"].dt.strftime("%m-%d") == yesterday.strftime("%m-%d")) &
+                             (df["날짜"].dt.year >= selected_years[0]) &
+                             (df["날짜"].dt.year <= selected_years[1])]
 
             highest_temp_yesterday = df_yesterday["최고기온(℃)"].values[0]
             highest_ranks = same_day_df.sort_values("최고기온(℃)", ascending=False).reset_index(drop=True)
