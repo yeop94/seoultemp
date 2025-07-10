@@ -156,12 +156,18 @@ if uploaded_file:
             st.write(f"➡️ {(avg_avg - hist_avg_avg):.2f}℃ {'더웠습니다' if avg_avg > hist_avg_avg else '덜 더웠습니다'}")
 
             # 백분위 계산
+            # 백분위 계산
+            recent_mean_df = df[df["날짜"].dt.strftime("%m-%d").isin(
+                [(today - datetime.timedelta(days=i)).strftime("%m-%d") for i in range(1, day_range + 1)])]
+            
             temp_diff_df = recent_mean_df.groupby(df["날짜"].dt.strftime("%m-%d"))["평균기온(℃)"].mean().reset_index(name="평균기온")
             percentile_rank = 100 * (temp_diff_df["평균기온"] < avg_avg).sum() / len(temp_diff_df)
             rank_number = len(temp_diff_df) - int(percentile_rank * len(temp_diff_df) / 100)
+            
+            # 안전하게 줄바꿈 포함 메시지 출력
             msg = (
-                f"📈 평균기온 기준으로 최근 {day_range}일은 역대 {len(temp_diff_df)}개 연중 동일 기간 중 "
-                f"상위 {100 - percentile_rank:.1f}% 더운 편입니다"
+                f"📈 평균기온 기준으로 최근 {day_range}일은 역대 {len(temp_diff_df)}개 연중 동일 기간 중\n"
+                f"상위 {100 - percentile_rank:.1f}% 더운 편입니다\n"
                 f"(전체 {len(temp_diff_df)}일 중 {rank_number}위)"
             )
             st.write(msg)
