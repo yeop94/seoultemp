@@ -156,7 +156,6 @@ if uploaded_file:
             st.write(f"➡️ {(avg_avg - hist_avg_avg):.2f}℃ {'더웠습니다' if avg_avg > hist_avg_avg else '덜 더웠습니다'}")
 
             # 백분위 계산
-            # 백분위 계산
             recent_mean_df = df[df["날짜"].dt.strftime("%m-%d").isin(
                 [(today - datetime.timedelta(days=i)).strftime("%m-%d") for i in range(1, day_range + 1)])]
             
@@ -171,6 +170,5 @@ if uploaded_file:
                 f"(전체 {len(temp_diff_df)}일 중 {rank_number}위)"
             )
             st.write(msg)
-
     except Exception as e:
         st.error(f"오류가 발생했습니다: {e}")
