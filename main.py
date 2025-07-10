@@ -114,9 +114,19 @@ if uploaded_file:
             st.write(f"최근 {day_range}일간 평균 최저기온: **{avg_low:.2f}℃**")
             st.write(f"최근 {day_range}일간 평균기온: **{avg_avg:.2f}℃**")
 
-            fig_week = px.line(recent_df.sort_values("날짜"), x="날짜", y=["최고기온(℃)", "평균기온(℃)", "최저기온(℃)"],
-                               title=f"최근 {day_range}일간 기온 변화 추이")
-            st.plotly_chart(fig_week)
+            historical_trend = recent_mean_df.groupby(df["날짜"].dt.strftime("%m-%d"))[["최고기온(℃)", "평균기온(℃)", "최저기온(℃)"]].mean().reset_index()
+            historical_trend["날짜"] = [(today - datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(day_range, 0, -1)]
+            historical_trend = pd.melt(historical_trend, id_vars="날짜", var_name="기온유형", value_name="역대 평균")
+            recent_plot_df = pd.melt(recent_df.sort_values("날짜"), id_vars="날짜", value_vars=["최고기온(℃)", "평균기온(℃)", "최저기온(℃)"], var_name="기온유형", value_name="최근 측정")
+
+            combined = pd.merge(recent_plot_df, historical_trend, on=["날짜", "기온유형"], how="left")
+            fig_combined = px.line(combined, x="날짜", y="최근 측정", color="기온유형",
+                                   title=f"최근 {day_range}일간 기온 변화 vs 역대 평균 추이")
+            for col in combined["기온유형"].unique():
+                fig_combined.add_scatter(x=combined[combined["기온유형"] == col]["날짜"],
+                                         y=combined[combined["기온유형"] == col]["역대 평균"],
+                                         mode="lines", name=f"{col} (역대 평균)", line=dict(dash="dot"))
+            st.plotly_chart(fig_combined)
 
             # 최고기온 vs 최저기온 스캐터플롯
             scatter_df = same_day_df.copy()
@@ -151,10 +161,9 @@ if uploaded_file:
             rank_number = len(temp_diff_df) - int(percentile_rank * len(temp_diff_df) / 100)
             st.write(
                 f"📈 평균기온 기준으로 최근 {day_range}일은 역대 {len(temp_diff_df)}개 연중 동일 기간 중 "
-                f"상위 {100 - percentile_rank:.1f}% 더운 편입니다 "
-                f"(x일 중 {rank_number}위)"
+                f"상위 {100 - percentile_rank:.1f}% 더운 편입니다
+(전체 {len(temp_diff_df)}일 중 {rank_number}위)"
             )
-
 
     except Exception as e:
         st.error(f"오류가 발생했습니다: {e}")
