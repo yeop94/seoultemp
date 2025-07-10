@@ -46,16 +46,20 @@ if uploaded_file:
             lowest_percentile = 100 * (lowest_rank / len(lowest_ranks))
 
             # 역대 최고 및 최저 1위 정보 출력
+            total_high = len(highest_ranks)
+            total_low = len(lowest_ranks)
+            high_percent = 100 * highest_rank / total_high
+            low_percent = 100 * lowest_rank / total_low
             record_high = same_day_df.sort_values("최고기온(℃)", ascending=False).iloc[0]
             record_low = same_day_df.sort_values("최저기온(℃)").iloc[0]
 
             st.markdown("### 🏆 역대 기록")
             st.write(f"📈 **역대 최고기온**: {record_high['최고기온(℃)']}℃ on {record_high['날짜'].date()}")
-            st.write(f"➡️ 어제보다 {(record_high['최고기온(℃)'] - highest_temp_yesterday):.1f}℃ "
-                     f"{'높았습니다' if record_high['최고기온(℃)'] > highest_temp_yesterday else '낮았습니다'}")
+            st.write(f"➡️ 어제보다 {(record_high['최고기온(℃)'] - highest_temp_yesterday):.1f}℃ {'높았습니다' if record_high['최고기온(℃)'] > highest_temp_yesterday else '낮았습니다'}")
+            st.write(f"📊 어제는 역대 {total_high}일 중 **상위 {high_percent:.1f}%** 더운 날")
             st.write(f"❄️ **역대 최저기온**: {record_low['최저기온(℃)']}℃ on {record_low['날짜'].date()}")
-            st.write(f"➡️ 어제보다 {(record_low['최저기온(℃)'] - lowest_temp_yesterday):.1f}℃ "
-                     f"{'낮았습니다' if record_low['최저기온(℃)'] < lowest_temp_yesterday else '높았습니다'}")
+            st.write(f"➡️ 어제보다 {(record_low['최저기온(℃)'] - lowest_temp_yesterday):.1f}℃ {'낮았습니다' if record_low['최저기온(℃)'] < lowest_temp_yesterday else '높았습니다'}")
+            st.write(f"📉 어제는 역대 {total_low}일 중 **상위 {low_percent:.1f}%** 추운 날")
 
             col1, col2 = st.columns(2)
             with col1:
