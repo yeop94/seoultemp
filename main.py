@@ -161,8 +161,7 @@ if uploaded_file:
             rank_number = len(temp_diff_df) - int(percentile_rank * len(temp_diff_df) / 100)
             msg = (
                 f"📈 평균기온 기준으로 최근 {day_range}일은 역대 {len(temp_diff_df)}개 연중 동일 기간 중 "
-                f"상위 {100 - percentile_rank:.1f}% 더운 편입니다
-"
+                f"상위 {100 - percentile_rank:.1f}% 더운 편입니다"
                 f"(전체 {len(temp_diff_df)}일 중 {rank_number}위)"
             )
             st.write(msg)
