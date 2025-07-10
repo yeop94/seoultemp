@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import datetime
 import os
+import plotly.express as px
 
 st.set_page_config(page_title="어제 기온 vs 역대 기온", layout="centered")
 st.title("📈 어제는 얼마나 더웠을까?")
@@ -43,13 +44,13 @@ if uploaded_file:
             highest_temp_yesterday = df_yesterday["최고기온(℃)"].values[0]
             highest_ranks = same_day_df.sort_values("최고기온(℃)", ascending=False).reset_index(drop=True)
             highest_rank = highest_ranks[highest_ranks["날짜"] == pd.to_datetime(yesterday)].index[0] + 1
-            highest_percentile = 100 * (1 - highest_rank / len(highest_ranks))
+            highest_percentile = 100 * (highest_rank / len(highest_ranks))
 
             # 최저기온 비교
             lowest_temp_yesterday = df_yesterday["최저기온(℃)"].values[0]
             lowest_ranks = same_day_df.sort_values("최저기온(℃)").reset_index(drop=True)
             lowest_rank = lowest_ranks[lowest_ranks["날짜"] == pd.to_datetime(yesterday)].index[0] + 1
-            lowest_percentile = 100 * (1 - lowest_rank / len(lowest_ranks))
+            lowest_percentile = 100 * (lowest_rank / len(lowest_ranks))
 
             # 카드 형태 출력
             col1, col2 = st.columns(2)
@@ -64,8 +65,19 @@ if uploaded_file:
             st.subheader("🔥 역대 동일 날짜 중 가장 더웠던 날 Top 5")
             st.dataframe(highest_ranks.head(5).reset_index(drop=True))
 
+            st.subheader("📊 최고기온 추이 (Plotly)")
+            fig_high = px.line(same_day_df.sort_values("날짜"), x="날짜", y="최고기온(℃)",
+                               title="역대 7월 {}일 최고기온 추이".format(yesterday.day))
+            st.plotly_chart(fig_high)
+
+            st.markdown("---")
             st.subheader("❄️ 역대 동일 날짜 중 가장 추웠던 날 Top 5")
             st.dataframe(lowest_ranks.head(5).reset_index(drop=True))
+
+            st.subheader("📊 최저기온 추이 (Plotly)")
+            fig_low = px.line(same_day_df.sort_values("날짜"), x="날짜", y="최저기온(℃)",
+                              title="역대 7월 {}일 최저기온 추이".format(yesterday.day))
+            st.plotly_chart(fig_low)
 
     except Exception as e:
         st.error(f"오류가 발생했습니다: {e}")
